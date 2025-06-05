@@ -1,0 +1,50 @@
+:root {
+    --color-black: #000000;
+    --color-dark-gray: #27292a;
+    --color-dark-blue: #282e43;
+    --color-white: #ffffff;
+
+    --font-family-base: 'FF DIN Pro', sans-serif;
+    --font-family-heading: 'FF DIN Pro Condensed', sans-serif;
+}
+
+body {
+    font-family: var(--font-family-base);
+    color: var(--color-white);
+    background-color: var(--color-black);
+    margin: 0;
+    padding: 0;
+}
+
+/* Example Styling - Adjust based on actual design */
+
+.page__header {
+    background-color: var(--color-dark-gray);
+    padding: 20px;
+    text-align: center;
+}
+
+.hero {
+    background-color: var(--color-dark-blue);
+    padding: 50px;
+    text-align: center;
+}
+
+.featured-collection {
+    padding: 30px;
+}
+
+.recent-videos {
+    padding: 30px;
+}
+
+.page__footer {
+    background-color: var(--color-dark-gray);
+    padding: 20px;
+    text-align: center;
+}
+
+h1, h2, h3 {
+    font-family: var(--font-family-heading);
+    color: var(--color-white);
+}
