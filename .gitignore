@@ -35,6 +35,19 @@ build/
 .env.test.local
 .env.production.local
 
+# Next.js specific
+.next/
+.swc/
+**/node_modules/@next/swc-*/
+**/*.node
+**/.next/cache/
+**/.next/static/chunks/
+**/.next/static/development/
+**/.next/static/runtime/
+**/.next/server/chunks/
+**/.next/server/pages/
+**/.next/trace
+
 # IDEs and editors
 .idea/
 .vscode/
@@ -53,4 +66,12 @@ build/
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db
+
+# Large binary files
+*.node
+*.so
+*.dylib
+*.dll
+*.exe
+*.bin 
