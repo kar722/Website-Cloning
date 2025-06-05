@@ -26,54 +26,22 @@ def configure_gemini(api_key: str):
 
 def create_generation_prompt(design_context: Dict[str, Any]) -> str:
     """Create a detailed prompt for Gemini to generate website code."""
-    return f"""You are an expert web developer. Generate clean, modern HTML and CSS code to clone a website based on the following design specifications. Return ONLY the code blocks, no explanations.
+    return f"""You are an expert front-end web developer tasked with recreating a static HTML and CSS version of a web page, using a structured design context provided to you.
 
-DESIGN SPECIFICATIONS:
----------------------
-Title: {design_context['title']}
+Your output must:
+- Reproduce the layout and visual style described as closely as possible.
+- Use only **vanilla HTML and CSS** (no JS, React, or Tailwind).
+- Prioritize semantic HTML5 tags (e.g., <nav>, <header>, <section>, <footer>, etc.).
+- Use clean, maintainable class names and include embedded styles in a <style> block inside <head>.
+- Include the provided images and headings in the correct layout blocks (hero, grid, footer, etc.).
+- Match the font families and color palette closely.
 
-Layout Structure:
-{json.dumps(design_context['layout'], indent=2)}
+Only output the complete HTML file — do not include comments, explanations, or markdown formatting.
 
-Color Palette:
-{json.dumps(design_context['color_palette'], indent=2)}
+Below is the structured design context for a webpage. Use this data to generate a full static HTML + CSS clone.
 
-Fonts Used:
-{json.dumps(design_context['fonts'], indent=2)}
-
-Text Content:
-{json.dumps(design_context['text_snippets'], indent=2)}
-
-Images:
-{json.dumps(design_context['images'], indent=2)}
-
-Original HTML Structure:
-{design_context['raw_html_snippet']}
-
-REQUIREMENTS:
-------------
-1. Generate ONLY the HTML and CSS code - no explanations
-2. Use semantic HTML5 elements
-3. Make it responsive
-4. Include all necessary font imports and image references
-5. Match the color scheme and typography exactly
-6. Follow the original layout structure
-
-RESPONSE FORMAT:
---------------
-Return ONLY two code blocks in this format:
-
-```html
-<!DOCTYPE html>
-... your HTML code here ...
-</html>
-```
-
-```css
-/* Your CSS code here */
-```
-
-Do not include any other text or explanations - just the code blocks."""
+Design Context:
+{json.dumps(design_context, indent=2)}"""
 
 async def generate_website_code(design_context: Dict[str, Any], model_name: str = "gemini-2.0-flash") -> WebsiteCode:
     """Generate website code using Gemini."""
@@ -123,23 +91,36 @@ async def generate_website_code(design_context: Dict[str, Any], model_name: str 
             generated_text = result["candidates"][0]["content"]["parts"][0]["text"]
             logger.info(f"Extracted text from response: {generated_text[:100]}...")
             
-            # Try to extract code blocks
+            # Try to extract HTML content
             html_match = re.search(r'```html\n(.*?)\n```', generated_text, re.DOTALL)
-            css_match = re.search(r'```css\n(.*?)\n```', generated_text, re.DOTALL)
-            
             if html_match:
-                html = html_match.group(1).strip()
-                css = css_match.group(1).strip() if css_match else ""
+                html_content = html_match.group(1).strip()
+                
+                # Extract CSS from the HTML (for preview purposes)
+                css_match = re.search(r'<style>(.*?)</style>', html_content, re.DOTALL)
+                css_content = css_match.group(1).strip() if css_match else ""
+                
                 return WebsiteCode(
-                    html=html,
-                    css=css
+                    html=html_content,
+                    css=css_content
                 )
             else:
-                return WebsiteCode(
-                    html="",
-                    css="",
-                    error="No HTML code found in response"
-                )
+                # If no code block, the entire response might be HTML
+                if generated_text.strip().startswith('<!DOCTYPE html>') or generated_text.strip().startswith('<html>'):
+                    html_content = generated_text.strip()
+                    css_match = re.search(r'<style>(.*?)</style>', html_content, re.DOTALL)
+                    css_content = css_match.group(1).strip() if css_match else ""
+                    
+                    return WebsiteCode(
+                        html=html_content,
+                        css=css_content
+                    )
+                else:
+                    return WebsiteCode(
+                        html="",
+                        css="",
+                        error="No valid HTML found in response"
+                    )
                 
         except (KeyError, IndexError) as e:
             logger.error(f"Unexpected response format: {str(e)}")

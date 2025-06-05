@@ -24,6 +24,10 @@ interface ScrapedData {
       height: number;
     };
   };
+  design_context?: {
+    color_palette?: string[];
+    fonts?: string[];
+  };
 }
 
 export default function Home() {
@@ -79,23 +83,25 @@ export default function Home() {
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <div className="space-y-4">
-            <h3 className="font-semibold text-lg">Website Screenshot</h3>
-            {scrapedData.metadata.screenshot && (
-              <img
-                src={`data:image/png;base64,${scrapedData.metadata.screenshot}`}
-                alt="Website screenshot"
-                className="w-full rounded-lg shadow-lg"
+            <h3 className="font-semibold text-lg">Cloned Website Preview</h3>
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden" style={{ height: '600px' }}>
+              <iframe
+                srcDoc={scrapedData.html}
+                className="w-full h-full border-0"
+                sandbox="allow-same-origin"
+                title="Cloned website preview"
               />
-            )}
+            </div>
           </div>
+          
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">Design Elements</h3>
             <div className="space-y-2">
               <h4 className="font-medium">Colors</h4>
               <div className="flex flex-wrap gap-2">
-                {scrapedData.colors.map((color, index) => (
+                {scrapedData.design_context?.color_palette?.map((color, index) => (
                   <div
                     key={index}
                     className="w-8 h-8 rounded-full shadow-md"
@@ -108,20 +114,39 @@ export default function Home() {
             <div className="space-y-2">
               <h4 className="font-medium">Fonts</h4>
               <ul className="list-disc list-inside">
-                {scrapedData.fonts.map((font, index) => (
+                {scrapedData.design_context?.fonts?.map((font, index) => (
                   <li key={index}>{font}</li>
                 ))}
               </ul>
             </div>
           </div>
         </div>
-        <div className="space-y-4">
-          <h3 className="font-semibold text-lg">HTML Preview</h3>
-          <div className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg">
-            <pre className="text-sm overflow-x-auto">
-              {scrapedData.html.slice(0, 500)}...
-            </pre>
-          </div>
+
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold text-lg">Generated Code</h3>
+          <button
+            onClick={() => {
+              const blob = new Blob([scrapedData.html], {
+                type: "text/html",
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "cloned-website.html";
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }}
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium text-sm"
+          >
+            Download HTML
+          </button>
+        </div>
+        <div className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg">
+          <pre className="text-sm overflow-x-auto whitespace-pre-wrap">
+            {scrapedData.html}
+          </pre>
         </div>
       </div>
     );
