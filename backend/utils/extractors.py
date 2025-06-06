@@ -15,10 +15,75 @@ import logging
 import json
 from dataclasses import dataclass
 from collections import defaultdict
+import random
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Custom exceptions
+class ScrapingError(Exception):
+    """Base exception for scraping errors"""
+    pass
+
+class ProxyError(ScrapingError):
+    """Raised when there are issues with proxy servers"""
+    pass
+
+class RateLimitError(ScrapingError):
+    """Raised when rate limits are hit"""
+    pass
+
+# Proxy configuration
+class ProxyManager:
+    def __init__(self):
+        self.proxies = []
+        self.last_rotation = datetime.now()
+        self.rotation_interval = timedelta(minutes=10)
+        self.current_index = 0
+        
+    def add_proxy(self, proxy: str):
+        """Add a proxy to the pool"""
+        self.proxies.append({
+            "server": proxy,
+            "failures": 0,
+            "last_used": datetime.now() - timedelta(minutes=5)
+        })
+    
+    def get_next_proxy(self) -> Optional[Dict[str, Any]]:
+        """Get the next available proxy with basic load balancing"""
+        if not self.proxies:
+            return None
+            
+        now = datetime.now()
+        if now - self.last_rotation > self.rotation_interval:
+            random.shuffle(self.proxies)
+            self.last_rotation = now
+            
+        # Find a proxy that hasn't failed too much
+        for _ in range(len(self.proxies)):
+            proxy = self.proxies[self.current_index]
+            self.current_index = (self.current_index + 1) % len(self.proxies)
+            
+            if proxy["failures"] < 3 and now - proxy["last_used"] > timedelta(seconds=2):
+                proxy["last_used"] = now
+                return {"server": proxy["server"]}
+                
+        return None
+    
+    def mark_proxy_failure(self, proxy_server: str):
+        """Mark a proxy as failed"""
+        for proxy in self.proxies:
+            if proxy["server"] == proxy_server:
+                proxy["failures"] += 1
+                break
+
+# Initialize proxy manager with some example proxies (replace with your actual proxies)
+proxy_manager = ProxyManager()
+# Add your proxy servers here
+# proxy_manager.add_proxy("http://proxy1:8080")
+# proxy_manager.add_proxy("http://proxy2:8080")
 
 # Browser configuration
 BROWSER_CONFIG = {
@@ -51,16 +116,32 @@ async def setup_browser() -> Tuple[Browser, BrowserContext]:
         ]
     )
     
-    context = await browser.new_context(
-        viewport=BROWSER_CONFIG["viewport"],
-        user_agent=BROWSER_CONFIG["user_agent"],
-        extra_http_headers=BROWSER_CONFIG["headers"]
-    )
+    # Get proxy configuration
+    proxy_config = proxy_manager.get_next_proxy()
+    context_options = {
+        "viewport": BROWSER_CONFIG["viewport"],
+        "user_agent": BROWSER_CONFIG["user_agent"],
+        "extra_http_headers": BROWSER_CONFIG["headers"],
+    }
+    
+    if proxy_config:
+        context_options["proxy"] = proxy_config
+    
+    context = await browser.new_context(**context_options)
     
     # Additional anti-bot measures
     await context.add_init_script("""
         Object.defineProperty(navigator, 'webdriver', {
             get: () => undefined
+        });
+        
+        // Hide automation flags
+        Object.defineProperty(navigator, 'plugins', {
+            get: () => [1, 2, 3, 4, 5]
+        });
+        
+        Object.defineProperty(navigator, 'languages', {
+            get: () => ['en-US', 'en']
         });
     """)
     
@@ -111,22 +192,42 @@ async def get_page_content(url: str) -> Optional[Dict[str, str]]:
                             timeout=30000
                         )
                         
-                        if response and response.ok:
+                        if not response:
+                            logger.error("No response received from page")
+                            if attempt < max_retries - 1:
+                                await page.wait_for_timeout(2000 * (attempt + 1))
+                                continue
                             break
                             
-                        if response and response.status == 403 and attempt < max_retries - 1:
-                            logger.warning(f"Received 403, retrying with delay... (attempt {attempt + 1})")
-                            await page.wait_for_timeout(2000 * (attempt + 1))
-                            continue
+                        status = response.status
+                        if status == 200:
+                            break
                             
-                        if response:
-                            response.raise_for_status()
+                        if status == 403:
+                            logger.warning(f"Received 403 status code (attempt {attempt + 1})")
+                            if attempt < max_retries - 1:
+                                await page.wait_for_timeout(2000 * (attempt + 1))
+                                continue
+                            break
+                            
+                        if status >= 400:
+                            logger.error(f"Received error status code: {status}")
+                            if attempt < max_retries - 1:
+                                await page.wait_for_timeout(2000 * (attempt + 1))
+                                continue
+                            break
                             
                     except Exception as e:
-                        if attempt == max_retries - 1:
-                            raise e
-                        logger.warning(f"Navigation failed, retrying... (attempt {attempt + 1}): {str(e)}")
-                        await page.wait_for_timeout(2000 * (attempt + 1))
+                        logger.warning(f"Navigation failed (attempt {attempt + 1}): {str(e)}")
+                        if attempt < max_retries - 1:
+                            await page.wait_for_timeout(2000 * (attempt + 1))
+                            continue
+                        raise
+                
+                # Check if we got a successful response
+                if not response or response.status != 200:
+                    logger.error(f"Failed to load page: Status {response.status if response else 'No response'}")
+                    return None
                 
                 # Wait for content to load
                 await page.wait_for_load_state("networkidle")
