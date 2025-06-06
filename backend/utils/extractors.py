@@ -1,10 +1,11 @@
-from typing import List, Dict, Optional, Set, Tuple
+from typing import List, Dict, Optional, Set, Tuple, Any
 import re
 import base64
 from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup, Tag
 from playwright.sync_api import sync_playwright, Page, Browser, BrowserContext
+from playwright.async_api import async_playwright
 import cssutils
 from PIL import Image
 import io
@@ -38,7 +39,10 @@ BROWSER_CONFIG = {
 
 async def setup_browser() -> Tuple[Browser, BrowserContext]:
     """Setup a browser with anti-bot detection measures."""
-    browser = await playwright.chromium.launch(
+    playwright = async_playwright()
+    playwright_instance = await playwright.start()
+    
+    browser = await playwright_instance.chromium.launch(
         headless=True,
         args=[
             "--disable-blink-features=AutomationControlled",
@@ -65,11 +69,31 @@ async def setup_browser() -> Tuple[Browser, BrowserContext]:
 async def get_page_content(url: str) -> Optional[Dict[str, str]]:
     """
     Fetch page content using Playwright with anti-bot measures.
-    Returns both HTML content and computed styles.
+    Returns HTML content, computed styles, and full page screenshot.
     """
     try:
         async with async_playwright() as playwright:
-            browser, context = await setup_browser()
+            browser = await playwright.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-features=IsolateOrigins,site-per-process",
+                    "--disable-site-isolation-trials"
+                ]
+            )
+            
+            context = await browser.new_context(
+                viewport=BROWSER_CONFIG["viewport"],
+                user_agent=BROWSER_CONFIG["user_agent"],
+                extra_http_headers=BROWSER_CONFIG["headers"]
+            )
+            
+            # Additional anti-bot measures
+            await context.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """)
             
             try:
                 page = await context.new_page()
@@ -87,15 +111,16 @@ async def get_page_content(url: str) -> Optional[Dict[str, str]]:
                             timeout=30000
                         )
                         
-                        if response.ok:
+                        if response and response.ok:
                             break
                             
-                        if response.status == 403 and attempt < max_retries - 1:
+                        if response and response.status == 403 and attempt < max_retries - 1:
                             logger.warning(f"Received 403, retrying with delay... (attempt {attempt + 1})")
                             await page.wait_for_timeout(2000 * (attempt + 1))
                             continue
                             
-                        response.raise_for_status()
+                        if response:
+                            response.raise_for_status()
                             
                     except Exception as e:
                         if attempt == max_retries - 1:
@@ -105,6 +130,12 @@ async def get_page_content(url: str) -> Optional[Dict[str, str]]:
                 
                 # Wait for content to load
                 await page.wait_for_load_state("networkidle")
+                
+                # Take full page screenshot
+                screenshot = await page.screenshot(
+                    full_page=True,
+                    type='png'
+                )
                 
                 # Get HTML content
                 html_content = await page.content()
@@ -128,10 +159,12 @@ async def get_page_content(url: str) -> Optional[Dict[str, str]]:
                         .join('\\n');
                 }""")
                 
-                return {
+                result = {
                     "html": html_content,
-                    "css": css_content
+                    "css": css_content,
+                    "screenshot": base64.b64encode(screenshot).decode('utf-8')
                 }
+                return result
                 
             finally:
                 await context.close()
@@ -513,3 +546,39 @@ def extract_component_descriptions(soup: BeautifulSoup) -> Tuple[List[str], List
                 layout.append(component.type)
     
     return components, layout 
+
+def process_screenshot_for_llm(screenshot_base64: str) -> Dict[str, Any]:
+    """
+    Process screenshot for LLM consumption, extracting relevant visual information.
+    """
+    try:
+        # Decode base64 image
+        image_data = base64.b64decode(screenshot_base64)
+        image = Image.open(io.BytesIO(image_data))
+        
+        # Get image dimensions
+        width, height = image.size
+        
+        # Convert to RGB if needed
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Get dominant colors
+        colors = image.getcolors(maxcolors=256)
+        if colors:
+            colors.sort(reverse=True)
+            dominant_colors = [webcolors.rgb_to_hex(color[1]) for color in colors[:5]]
+        else:
+            dominant_colors = []
+        
+        return {
+            "dimensions": {
+                "width": width,
+                "height": height
+            },
+            "dominant_colors": dominant_colors,
+            "base64_image": screenshot_base64
+        }
+    except Exception as e:
+        logger.error(f"Failed to process screenshot: {str(e)}")
+        return None

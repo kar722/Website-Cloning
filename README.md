@@ -1,43 +1,74 @@
-# Orchids SWE Intern Challenge Template
+# Website Cloner
 
-This project consists of a backend built with FastAPI and a frontend built with Next.js and TypeScript.
+An AI-powered website cloning tool that uses Playwright for web scraping and Google's Gemini Pro for generating static clones of websites.
 
-## Backend
+## Project Overview
 
-The backend uses `uv` for package management.
+This tool allows you to clone any public website by:
+1. Extracting design elements using Playwright's headless browser
+2. Analyzing the website's structure and styling
+3. Generating a static clone using Gemini Pro LLM
+4. Providing downloadable HTML/CSS output
 
-### Installation
+### Key Features
+- **Smart Web Scraping**: Uses Playwright for JavaScript-rendered content and anti-bot measures
+- **Design Analysis**: Extracts colors, fonts, layout structure, and component descriptions
+- **AI Generation**: Leverages Gemini Pro to generate semantic HTML and CSS
+- **Modern UI**: Built with Next.js and styled with TailwindCSS
 
-To install the backend dependencies, run the following command in the backend project directory:
+## Tech Stack
 
-```bash
-uv sync
-```
+### Backend
+- FastAPI for the API server
+- Playwright for web scraping and screenshot capture
+- Google Gemini Pro for code generation
+- BeautifulSoup4 for HTML parsing
+- Python 3.11+
 
-### Running the Backend
+### Frontend
+- Next.js with TypeScript
+- React 19
+- TailwindCSS for styling
+- Modern, responsive UI with dark mode support
 
-To run the backend development server, use the following command:
+## Getting Started
 
-```bash
-uv run fastapi dev
-```
+### Backend Setup
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
 
-## Frontend
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-The frontend is built with Next.js and TypeScript.
+3. Set up environment variables:
+   ```bash
+   # Create .env file with:
+   GEMINI_API_KEY=your_api_key_here
+   ```
 
-### Installation
+4. Run the development server:
+   ```bash
+   uvicorn main:app --reload
+   ```
 
-To install the frontend dependencies, navigate to the frontend project directory and run:
+### Frontend Setup
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
 
-```bash
-npm install
-```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-### Running the Frontend
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-To start the frontend development server, run:
-
-```bash
-npm run dev
-```
+The application will be available at `http://localhost:3000`

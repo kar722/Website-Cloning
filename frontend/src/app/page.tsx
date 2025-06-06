@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { CgWebsite } from "react-icons/cg";
+import { HiArrowRight } from "react-icons/hi";
+import { FiGithub } from "react-icons/fi";
+import TypewriterInput from "./components/TypewriterInput";
 
 interface ScrapedData {
   html: string;
@@ -42,12 +46,12 @@ export default function Home() {
     setError(null);
 
     try {
-      const response = await fetch("http://localhost:8002/api/scrape", {
+      const response = await fetch("http://localhost:8000/api/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, options: {} }),
       });
 
       if (!response.ok) {
@@ -153,87 +157,153 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Website Cloner
-          </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300">
-            Enter any public website URL and get an AI-generated clone with similar
-            aesthetics
-          </p>
+    <div className="min-h-screen bg-[#000000] relative overflow-hidden">
+      {/* Animated gradient orbs in background */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -inset-[10px] opacity-30">
+          {/* Top left orb */}
+          <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-[#c541e0] rounded-full mix-blend-screen filter blur-[80px] animate-blob" />
+          {/* Bottom right orb */}
+          <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#e041b6] rounded-full mix-blend-screen filter blur-[80px] animate-blob animation-delay-2000" />
+          {/* Center orb */}
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#c541e0] rounded-full mix-blend-screen filter blur-[80px] animate-blob animation-delay-4000" />
         </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto mb-12">
-          <div className="flex gap-4">
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="Enter website URL (e.g., https://example.com)"
-              className="flex-1 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              required
-            />
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Processing...
-                </>
-              ) : (
-                "Clone Website"
-              )}
-            </button>
-          </div>
-        </form>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Preview
-            </h2>
-            {scrapedData && (
-              <button
-                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium text-sm"
-                onClick={() => {
-                  const blob = new Blob([scrapedData.html], {
-                    type: "text/html",
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "cloned-website.html";
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                }}
+      {/* Main content */}
+      <div className="relative z-10">
+        {/* Navbar */}
+        <nav className="w-full border-b border-white/5 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center gap-2">
+                <CgWebsite className="w-8 h-8 text-[#c541e0]" />
+                <span className="text-white/80 font-space-grotesk text-lg">Website Cloner</span>
+              </div>
+              <a
+                href="https://github.com/kar722/Website-Cloning"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white/60 hover:text-white transition-colors p-2 rounded-full hover:bg-white/5"
               >
-                Download HTML
-              </button>
-            )}
+                <FiGithub className="w-6 h-6" />
+              </a>
+            </div>
           </div>
-          <div className="border rounded-lg p-4 min-h-[400px] bg-gray-50 dark:bg-gray-900">
-            {renderPreview()}
+        </nav>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          <div className="text-center mb-20">
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <CgWebsite className="w-16 h-16 text-[#c541e0] animate-float drop-shadow-[0_0_8px_rgba(197,65,224,0.5)]" />
+              <h1 className="text-7xl font-bold tracking-tight relative">
+                <span className="absolute inset-0 text-[#c541e0] blur-[2px] select-none" aria-hidden="true">
+                  Website Cloner
+                </span>
+                <span className="absolute inset-0 text-[#e041b6] blur-[4px] select-none opacity-70" aria-hidden="true">
+                  Website Cloner
+                </span>
+                <span className="relative text-[#c541e0] font-space-grotesk drop-shadow-[0_0_10px_rgba(197,65,224,0.3)]">
+                  Website Cloner
+                </span>
+              </h1>
+            </div>
+            <p className="text-xl text-[#FFFFFF] max-w-2xl mx-auto font-space-grotesk mb-16">
+              Enter any public website URL and get an AI-generated clone with similar
+              aesthetics
+            </p>
+
+            <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                <TypewriterInput
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className="w-full sm:max-w-xl px-6 py-5 rounded-2xl border border-white/10 bg-black/20 
+                    backdrop-blur-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-[#e041b6] 
+                    focus:border-transparent transition-all text-lg focus:shadow-[0_0_20px_rgba(224,65,182,0.3)] 
+                    hover:border-[#e041b6] hover:shadow-[0_0_15px_rgba(224,65,182,0.2)]
+                    shadow-[0_4px_15px_rgba(0,0,0,0.1)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.2)]
+                    text-left"
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="group h-[60px] px-8 bg-transparent hover:bg-gradient-to-r hover:from-[#e041b6] hover:to-[#c541e0]
+                    text-white font-medium rounded-2xl transition-all duration-300 
+                    disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-lg 
+                    relative overflow-hidden border-2 border-[#c541e0] hover:border-transparent
+                    shadow-[0_0_20px_rgba(224,65,182,0.2)] hover:shadow-[0_0_30px_rgba(224,65,182,0.4)]
+                    sm:w-auto w-full justify-center whitespace-nowrap font-space-grotesk"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-3">
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                      <span className="animate-pulse">Processing...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      Clone Website
+                      <HiArrowRight className="w-5 h-5 transform transition-transform duration-300 group-hover:translate-x-1" />
+                    </div>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="bg-black/30 backdrop-blur-xl rounded-xl border border-white/10 
+            shadow-[0_8px_32px_rgba(0,0,0,0.4)] p-8 transition-all duration-300 
+            hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] relative">
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-white">
+                  Preview
+                </h2>
+                {scrapedData && (
+                  <button
+                    className="text-[#e041b6] hover:text-[#c541e0] font-medium text-base transition-colors 
+                      flex items-center gap-2 group bg-black/20 px-4 py-2 rounded-lg backdrop-blur-sm 
+                      border border-white/5 hover:border-white/10"
+                    onClick={() => {
+                      const blob = new Blob([scrapedData.html], {
+                        type: "text/html",
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "cloned-website.html";
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    Download HTML
+                    <HiArrowRight className="w-4 h-4 transform transition-transform duration-300 group-hover:translate-x-1" />
+                  </button>
+                )}
+              </div>
+              <div className="border border-white/[0.05] rounded-xl p-6 min-h-[500px] 
+                bg-black/40 backdrop-blur-sm transition-all duration-300 
+                shadow-[inset_0_2px_15px_rgba(0,0,0,0.4)]">
+                {renderPreview()}
+              </div>
+            </div>
           </div>
         </div>
       </div>

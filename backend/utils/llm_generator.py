@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Global variables
 GEMINI_API_KEY = None  # Will be set by configure_gemini
+model = None  # Will be set by configure_gemini
 
 @dataclass
 class WebsiteCode:
@@ -21,8 +22,10 @@ class WebsiteCode:
 
 def configure_gemini(api_key: str):
     """Configure Gemini with API key."""
-    global GEMINI_API_KEY
+    global GEMINI_API_KEY, model
     GEMINI_API_KEY = api_key
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash-exp")
 
 def create_generation_prompt(design_context: Dict[str, Any]) -> str:
     """Create a detailed prompt for Gemini to generate website code."""
@@ -43,91 +46,103 @@ Below is the structured design context for a webpage. Use this data to generate 
 Design Context:
 {json.dumps(design_context, indent=2)}"""
 
-async def generate_website_code(design_context: Dict[str, Any], model_name: str = "gemini-2.0-flash") -> WebsiteCode:
-    """Generate website code using Gemini."""
+async def generate_website_code(design_context: Dict[str, Any], model_name: str = "gemini-2.0-flash-exp") -> WebsiteCode:
+    """
+    Generate website code using Gemini Pro based on design context.
+    """
     try:
-        # Create the prompt
-        prompt = create_generation_prompt(design_context)
-        
-        # Prepare request in the correct format
-        request_body = {
-            "contents": [
-                {
-                    "parts": [
-                        {
-                            "text": prompt
-                        }
-                    ]
-                }
-            ]
-        }
-        
-        # Make direct HTTP request to Gemini API
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
-        headers = {
-            "Content-Type": "application/json"
-        }
-        params = {
-            "key": GEMINI_API_KEY
-        }
-        
-        logger.info(f"Making request to Gemini API: {url}")
-        response = requests.post(
-            url,
-            headers=headers,
-            params=params,
-            json=request_body
-        )
-        
-        # Check for errors
-        response.raise_for_status()
-        
-        # Parse the response
-        result = response.json()
-        logger.info(f"Received response from Gemini API: {result}")
-        
-        try:
-            # Extract the generated text
-            generated_text = result["candidates"][0]["content"]["parts"][0]["text"]
-            logger.info(f"Extracted text from response: {generated_text[:100]}...")
-            
-            # Try to extract HTML content
-            html_match = re.search(r'```html\n(.*?)\n```', generated_text, re.DOTALL)
-            if html_match:
-                html_content = html_match.group(1).strip()
-                
-                # Extract CSS from the HTML (for preview purposes)
-                css_match = re.search(r'<style>(.*?)</style>', html_content, re.DOTALL)
-                css_content = css_match.group(1).strip() if css_match else ""
-                
-                return WebsiteCode(
-                    html=html_content,
-                    css=css_content
-                )
-            else:
-                # If no code block, the entire response might be HTML
-                if generated_text.strip().startswith('<!DOCTYPE html>') or generated_text.strip().startswith('<html>'):
-                    html_content = generated_text.strip()
-                    css_match = re.search(r'<style>(.*?)</style>', html_content, re.DOTALL)
-                    css_content = css_match.group(1).strip() if css_match else ""
-                    
-                    return WebsiteCode(
-                        html=html_content,
-                        css=css_content
-                    )
-                else:
-                    return WebsiteCode(
-                        html="",
-                        css="",
-                        error="No valid HTML found in response"
-                    )
-                
-        except (KeyError, IndexError) as e:
-            logger.error(f"Unexpected response format: {str(e)}")
+        if not model:
             return WebsiteCode(
                 html="",
                 css="",
-                error=f"Unexpected response format: {str(e)}"
+                error="Gemini model not initialized"
+            )
+
+        # Extract screenshot information
+        screenshot_info = design_context.get("screenshot", {})
+        screenshot_prompt = ""
+        if screenshot_info:
+            screenshot_prompt = f"""
+            Visual Reference:
+            - Page dimensions: {screenshot_info.get('dimensions', {}).get('width')}x{screenshot_info.get('dimensions', {}).get('height')} pixels
+            - Dominant colors: {', '.join(screenshot_info.get('dominant_colors', []))}
+            - Full page screenshot is available for reference
+            """
+
+        # Construct the prompt
+        prompt = f"""
+        Create a modern, responsive website clone based on the following design context:
+
+        {screenshot_prompt}
+
+        Design Elements:
+        - Title: {design_context.get('title', '')}
+        - Color Palette: {', '.join(design_context.get('color_palette', []))}
+        - Fonts: {', '.join(design_context.get('fonts', []))}
+        
+        Layout Structure:
+        {json.dumps(design_context.get('layout', []), indent=2)}
+        
+        Component Descriptions:
+        {json.dumps(design_context.get('component_descriptions', []), indent=2)}
+        
+        Text Content:
+        {json.dumps(design_context.get('text_snippets', {}), indent=2)}
+        
+        Original HTML Structure:
+        {design_context.get('raw_html_snippet', '')}
+        
+        Requirements:
+        1. Generate clean, semantic HTML5 markup
+        2. Use modern CSS3 features for styling
+        3. Ensure responsive design that works on all devices
+        4. Match the original layout and design as closely as possible
+        5. Use the provided color palette and fonts
+        6. Implement proper accessibility features
+        7. Optimize for performance
+        
+        Please provide the complete HTML and CSS code for the cloned website.
+        """
+
+        # Generate code using Gemini
+        try:
+            response = await model.generate_content_async(prompt)
+            
+            if not response or not response.text:
+                return WebsiteCode(
+                    html="",
+                    css="",
+                    error="Failed to generate website code"
+                )
+            
+            # Parse the response to extract HTML and CSS
+            try:
+                html_start = response.text.find("<html")
+                html_end = response.text.find("</html>") + 7
+                html = response.text[html_start:html_end]
+                
+                css_start = response.text.find("<style>") + 7
+                css_end = response.text.find("</style>")
+                css = response.text[css_start:css_end]
+                
+                return WebsiteCode(
+                    html=html,
+                    css=css,
+                    error=None
+                )
+            except Exception as e:
+                return WebsiteCode(
+                    html="",
+                    css="",
+                    error=f"Failed to parse generated code: {str(e)}"
+                )
+                
+        except Exception as e:
+            logger.error(f"Error calling Gemini API: {str(e)}")
+            return WebsiteCode(
+                html="",
+                css="",
+                error=f"Failed to call Gemini API: {str(e)}"
             )
             
     except Exception as e:
@@ -135,5 +150,5 @@ async def generate_website_code(design_context: Dict[str, Any], model_name: str 
         return WebsiteCode(
             html="",
             css="",
-            error=str(e)
-        ) 
+            error=f"Failed to generate website code: {str(e)}"
+        )

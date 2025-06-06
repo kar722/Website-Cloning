@@ -22,7 +22,8 @@ from utils.extractors import (
     extract_text_snippets,
     extract_component_descriptions,
     extract_raw_html_snippet,
-    get_page_content
+    get_page_content,
+    process_screenshot_for_llm
 )
 
 from utils.llm_generator import (
@@ -48,6 +49,7 @@ class GenerateWebsiteResponse(BaseModel):
     css: str
     error: Optional[str] = None
     design_context: Optional[Dict[str, Any]] = None
+    screenshot: Optional[Dict[str, Any]] = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -179,7 +181,8 @@ async def extract_design_context(url: str) -> Dict[str, Any]:
                 response.raise_for_status()
                 content = {
                     "html": response.text,
-                    "css": ""  # No computed styles in fallback mode
+                    "css": "",  # No computed styles in fallback mode
+                    "screenshot": None  # No screenshot in fallback mode
                 }
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)}")
@@ -208,6 +211,11 @@ async def extract_design_context(url: str) -> Dict[str, Any]:
         # Extract component descriptions and layout
         component_descriptions, layout = extract_component_descriptions(soup)
         
+        # Process screenshot if available
+        screenshot_data = None
+        if content.get("screenshot"):
+            screenshot_data = process_screenshot_for_llm(content["screenshot"])
+        
         # Build enhanced response
         result = {
             "title": extract_title(soup),
@@ -218,7 +226,8 @@ async def extract_design_context(url: str) -> Dict[str, Any]:
             "text_snippets": extract_text_snippets(soup),
             "css_links": css_links,
             "raw_html_snippet": extract_raw_html_snippet(soup),
-            "component_descriptions": component_descriptions
+            "component_descriptions": component_descriptions,
+            "screenshot": screenshot_data
         }
         
         return result
