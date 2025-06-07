@@ -79,11 +79,7 @@ class ProxyManager:
                 proxy["failures"] += 1
                 break
 
-# Initialize proxy manager with some example proxies (replace with your actual proxies)
 proxy_manager = ProxyManager()
-# Add your proxy servers here
-# proxy_manager.add_proxy("http://proxy1:8080")
-# proxy_manager.add_proxy("http://proxy2:8080")
 
 # Browser configuration
 BROWSER_CONFIG = {
